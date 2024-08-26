@@ -15,98 +15,156 @@ var mainLog *log.Logger
 
 func main() {
 	mainLog = log.New(os.Stdout, "client:", log.LstdFlags)
-	if len(os.Args) != 2 {
+	/*if len(os.Args) != 2 {
 		mainLog.Printf("Usage: %s mode ", os.Args[0])
 		os.Exit(1)
 	}
 
-	mode := os.Args[1]
+	mode := os.Args[1]*/
 	service := "localhost:3241"
 	tcpAddr, err := net.ResolveTCPAddr("tcp4", service)
 	handleError(err)
-	switch mode {
-	case "test":
-		tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
-		handleError(err)
-
-		var helloSlice []byte
-		helloSlice = append(helloSlice, 0xAA)
-
-		_, err = tcpConn.Write(helloSlice)
-		handleError(err)
-		connectionResult, err := io.ReadAll(tcpConn)
-		handleError(err)
-		if len(connectionResult) != 2 {
-			mainLog.Printf("Unexpected answer from server")
-			os.Exit(1)
+	currentUserState := "Guest"
+	currentUserToken := make([]byte, 0)
+	currentRole := "UNASSIGNED"
+	for {
+		var inputCommand string
+		fmt.Printf("%s:", currentUserState)
+		_, err := fmt.Scanln(&inputCommand)
+		if err != nil {
+			handleError(err)
 		}
-		switch connectionResult[0] {
-		case 0x0F: // Proceed
-			mainLog.Println("Connection test successful")
-		case 0xF0: // Disconnect
-			mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
-		default:
-			mainLog.Printf("Unexpected answer from server")
-			os.Exit(1)
-		}
-	case "registration":
-		tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
-		handleError(err)
-		createSlice, err := sendCreateUser()
-		handleError(err)
-		_, err = tcpConn.Write(createSlice)
-		handleError(err)
+		switch inputCommand {
+		case "test":
+			tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+			handleError(err)
 
-		connectionResult, err := io.ReadAll(tcpConn)
-		handleError(err)
-		if len(connectionResult) != 2 {
-			mainLog.Printf("Unexpected answer from server")
-			os.Exit(1)
-		}
-		switch connectionResult[0] {
-		case 0x0F: // Proceed
-			mainLog.Println("New user created")
-		case 0xF0: // Disconnect
-			mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
-		default:
-			mainLog.Printf("Unexpected answer from server")
-			os.Exit(1)
-		}
-	case "login":
-		tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
-		handleError(err)
-		loginSlice, err := sendLogin()
-		handleError(err)
+			var helloSlice []byte
+			helloSlice = append(helloSlice, 0xAA)
 
-		_, err = tcpConn.Write(loginSlice)
-		handleError(err)
-
-		connectionResult, err := io.ReadAll(tcpConn)
-		handleError(err)
-
-		switch connectionResult[0] {
-		case 0x0F: // Proceed
-			token := connectionResult[3:]
-			switch connectionResult[2] {
-			case 0x01:
-				mainLog.Printf("Welcome, SUPERUSER, your token is %s\n", hex.EncodeToString(token))
-			case 0x02:
-				mainLog.Printf("Welcome, ADMIN, your token is %s\n", hex.EncodeToString(token))
-			case 0x03:
-				mainLog.Printf("Welcome, USER, your token is %s\n", hex.EncodeToString(token))
+			_, err = tcpConn.Write(helloSlice)
+			handleError(err)
+			connectionResult, err := io.ReadAll(tcpConn)
+			handleError(err)
+			switch connectionResult[0] {
+			case 0x0F: // Proceed
+				mainLog.Println("Connection test successful")
+			case 0xF0: // Disconnect
+				mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
+			default:
+				mainLog.Printf("Unexpected answer from server")
+				os.Exit(1)
 			}
-		case 0xF0: // Disconnect
-			mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
+		case "registration":
+			if currentRole != "SUPERUSER" {
+				mainLog.Println("You have no rights to do that!")
+				continue
+			}
+			tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+			handleError(err)
+			createSlice, err := sendCreateUser(currentUserToken)
+			handleError(err)
+			_, err = tcpConn.Write(createSlice)
+			handleError(err)
+
+			connectionResult, err := io.ReadAll(tcpConn)
+			handleError(err)
+			switch connectionResult[0] {
+			case 0x0F: // Proceed
+				mainLog.Println("New user created")
+			case 0xF0: // Disconnect
+				mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
+			default:
+				mainLog.Printf("Unexpected answer from server")
+				os.Exit(1)
+			}
+		case "login":
+			if currentUserState != "Guest" {
+				mainLog.Println("You already logged in")
+				continue
+			}
+			tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+			handleError(err)
+			loginSlice, loginString, err := sendLogin()
+			handleError(err)
+
+			_, err = tcpConn.Write(loginSlice)
+			handleError(err)
+
+			connectionResult, err := io.ReadAll(tcpConn)
+			handleError(err)
+
+			switch connectionResult[0] {
+			case 0x0F: // Proceed
+				token := connectionResult[3:]
+				switch connectionResult[2] {
+				case 0x01:
+					mainLog.Printf("Welcome, %s, your token is %s\n", loginString, hex.EncodeToString(token))
+					currentRole = "SUPERUSER"
+				case 0x02:
+					mainLog.Printf("Welcome, %s, your token is %s\n", loginString, hex.EncodeToString(token))
+					currentRole = "ADMIN"
+				case 0x03:
+					mainLog.Printf("Welcome, %s, your token is %s\n", loginString, hex.EncodeToString(token))
+					currentRole = "USER"
+				}
+				currentUserState = loginString
+				currentUserToken = token
+			case 0xF0: // Disconnect
+				mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
+			default:
+				mainLog.Printf("Unexpected answer from server")
+				os.Exit(1)
+			}
+		case "logout":
+			if currentUserState == "Guest" {
+				mainLog.Println("You are not logged in")
+				continue
+			}
+			tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+			handleError(err)
+			logoutSlice, err := sendLogout(currentUserToken)
+			handleError(err)
+
+			_, err = tcpConn.Write(logoutSlice)
+			handleError(err)
+
+			logoutResult, err := io.ReadAll(tcpConn)
+			handleError(err)
+			switch logoutResult[0] {
+			case 0x0F:
+				mainLog.Printf("Logged out")
+				currentUserState = "Guest"
+				currentUserToken = nil
+				currentRole = "UNASSIGNED"
+			case 0xF0:
+				mainLog.Printf("Recived Failure, error code: %v\n", logoutResult[1])
+			default:
+				mainLog.Printf("Unexpected answer from server")
+				os.Exit(1)
+			}
+		case "shutdown":
+			if currentRole != "SUPERUSER" {
+				mainLog.Println("You have no rights to do that!")
+				continue
+			}
+			tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+			handleError(err)
+			shutDownSlice, err := sendShutDown(currentUserToken)
+			handleError(err)
+
+			_, err = tcpConn.Write(shutDownSlice)
+			handleError(err)
+			return
+		case "exit":
+			return
 		default:
-			mainLog.Printf("Unexpected answer from server")
-			os.Exit(1)
+			mainLog.Println("Unknown command")
 		}
 	}
-
-	mainLog.Printf("Connection established to %v\n", tcpAddr)
-	os.Exit(0)
 }
 
+// lazy handling errors
 func handleError(err error) {
 	if err != nil {
 		mainLog.Printf("Fatal error: %s", err.Error())
@@ -114,8 +172,9 @@ func handleError(err error) {
 	}
 }
 
-func sendCreateUser() ([]byte, error) {
-	/*var inputUserName, inputPassword1, inputPassword2, inputRole string
+// scans new users login, password and desired role and result in request
+func sendCreateUser(token []byte) ([]byte, error) {
+	var inputUserName, inputPassword1, inputPassword2, inputRole string
 	fmt.Println("Enter user new username...")
 	_, err := fmt.Scan(&inputUserName)
 	handleError(err)
@@ -135,18 +194,15 @@ func sendCreateUser() ([]byte, error) {
 	fmt.Println("Enter role...")
 	_, err = fmt.Scan(&inputRole)
 	handleError(err)
-	*/
-	inputUserName := "Superuser"
-	inputPassword1 := "superuser"
-	inputRole := "SUPERUSER"
 
-	requestSlice, err := formNewUser(inputUserName, inputPassword1, inputRole)
+	requestSlice, err := formNewUser(inputUserName, inputPassword1, inputRole, token)
 	handleError(err)
 
 	return requestSlice, nil
 }
 
-func formNewUser(name, password, role string) ([]byte, error) {
+// forms request for creating new user
+func formNewUser(name, password, role string, token []byte) ([]byte, error) {
 	if len(name) > 255 {
 		return nil, errors.New("username is too long")
 	}
@@ -166,6 +222,7 @@ func formNewUser(name, password, role string) ([]byte, error) {
 
 	var requestSlice []byte
 	requestSlice = append(requestSlice, commandByte)
+	requestSlice = append(requestSlice, token...)
 	requestSlice = append(requestSlice, roleByte)
 	requestSlice = append(requestSlice, byte(len(name)))
 	requestSlice = append(requestSlice, name...)
@@ -175,6 +232,7 @@ func formNewUser(name, password, role string) ([]byte, error) {
 	return requestSlice, nil
 }
 
+// calculates md5 hash for password
 func calculateMD5(input string) (hashValue []byte, hashSize int) {
 	hash := md5.New()
 	hash.Write([]byte(input))
@@ -183,7 +241,8 @@ func calculateMD5(input string) (hashValue []byte, hashSize int) {
 	return
 }
 
-func sendLogin() ([]byte, error) {
+// forms authentification request
+func sendLogin() ([]byte, string, error) {
 	var inputUserName, inputPassword string
 	fmt.Println("Enter username...")
 	_, err := fmt.Scan(&inputUserName)
@@ -193,7 +252,7 @@ func sendLogin() ([]byte, error) {
 	handleError(err)
 
 	if len(inputUserName) > 255 {
-		return nil, errors.New("username is too long")
+		return nil, "", errors.New("username is too long")
 	}
 
 	hashValue, hashSize := calculateMD5(inputPassword)
@@ -210,5 +269,26 @@ func sendLogin() ([]byte, error) {
 	requestSlice = append(requestSlice, byte(hashSize))
 	requestSlice = append(requestSlice, hashValue...)
 
+	return requestSlice, inputUserName, nil
+}
+
+// forms request fro logout
+func sendLogout(token []byte) ([]byte, error) {
+	var (
+		requestSlice []byte
+		commandByte  byte
+	)
+
+	commandByte = 0x21
+	requestSlice = append(requestSlice, commandByte)
+	requestSlice = append(requestSlice, token...)
 	return requestSlice, nil
+
+}
+
+// forms request for shutting down serever
+func sendShutDown(token []byte) ([]byte, error) {
+	shutDownSlice := []byte{0x01}
+	shutDownSlice = append(shutDownSlice, token...)
+	return shutDownSlice, nil
 }
