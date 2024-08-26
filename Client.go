@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -40,20 +42,65 @@ func main() {
 		}
 		switch connectionResult[0] {
 		case 0x0F: // Proceed
-			mainLog.Println("Recived Proceed")
+			mainLog.Println("Connection test successful")
 		case 0xF0: // Disconnect
-			mainLog.Println("Recived Disconnect")
+			mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
 		default:
 			mainLog.Printf("Unexpected answer from server")
 			os.Exit(1)
 		}
-	case "registartion":
+	case "registration":
 		tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
 		handleError(err)
 		createSlice, err := sendCreateUser()
 		handleError(err)
 		_, err = tcpConn.Write(createSlice)
 		handleError(err)
+
+		connectionResult, err := io.ReadAll(tcpConn)
+		handleError(err)
+		if len(connectionResult) != 2 {
+			mainLog.Printf("Unexpected answer from server")
+			os.Exit(1)
+		}
+		switch connectionResult[0] {
+		case 0x0F: // Proceed
+			mainLog.Println("New user created")
+		case 0xF0: // Disconnect
+			mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
+		default:
+			mainLog.Printf("Unexpected answer from server")
+			os.Exit(1)
+		}
+	case "login":
+		tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+		handleError(err)
+		loginSlice, err := sendLogin()
+		handleError(err)
+
+		_, err = tcpConn.Write(loginSlice)
+		handleError(err)
+
+		connectionResult, err := io.ReadAll(tcpConn)
+		handleError(err)
+
+		switch connectionResult[0] {
+		case 0x0F: // Proceed
+			token := connectionResult[3:]
+			switch connectionResult[2] {
+			case 0x01:
+				mainLog.Printf("Welcome, SUPERUSER, your token is %s\n", hex.EncodeToString(token))
+			case 0x02:
+				mainLog.Printf("Welcome, ADMIN, your token is %s\n", hex.EncodeToString(token))
+			case 0x03:
+				mainLog.Printf("Welcome, USER, your token is %s\n", hex.EncodeToString(token))
+			}
+		case 0xF0: // Disconnect
+			mainLog.Printf("Recived Failure, error code: %v\n", connectionResult[1])
+		default:
+			mainLog.Printf("Unexpected answer from server")
+			os.Exit(1)
+		}
 	}
 
 	mainLog.Printf("Connection established to %v\n", tcpAddr)
@@ -134,4 +181,34 @@ func calculateMD5(input string) (hashValue []byte, hashSize int) {
 	hashValue = hash.Sum(nil)
 	hashSize = hash.Size()
 	return
+}
+
+func sendLogin() ([]byte, error) {
+	var inputUserName, inputPassword string
+	fmt.Println("Enter username...")
+	_, err := fmt.Scan(&inputUserName)
+	handleError(err)
+	fmt.Println("Enter password...")
+	_, err = fmt.Scan(&inputPassword)
+	handleError(err)
+
+	if len(inputUserName) > 255 {
+		return nil, errors.New("username is too long")
+	}
+
+	hashValue, hashSize := calculateMD5(inputPassword)
+
+	var (
+		requestSlice []byte
+		commandByte  byte
+	)
+
+	commandByte = 0x20
+	requestSlice = append(requestSlice, commandByte)
+	requestSlice = append(requestSlice, byte(len(inputUserName)))
+	requestSlice = append(requestSlice, inputUserName...)
+	requestSlice = append(requestSlice, byte(hashSize))
+	requestSlice = append(requestSlice, hashValue...)
+
+	return requestSlice, nil
 }
