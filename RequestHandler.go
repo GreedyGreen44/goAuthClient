@@ -300,6 +300,7 @@ func sendLogout(token []byte) ([]byte, error) {
 	return requestSlice, nil
 }
 
+// reqeust for shutting down server
 func requestShutdown(tcpAddr *net.TCPAddr, currentRole *string, currentUserToken *[]byte) int {
 	if *currentRole != "SUPERUSER" {
 		handleError([2]byte{0x00, 0x08}, errors.New("you have no rights to do that")) // nonfatal, failed to form shutdown request
@@ -315,6 +316,20 @@ func requestShutdown(tcpAddr *net.TCPAddr, currentRole *string, currentUserToken
 	if ok := handleError([2]byte{0x00, 0x03}, err); ok != 0 { // nonfatal, failed to send command to server
 		return ok
 	}
+	shutdownResult, err := io.ReadAll(tcpConn)
+	if ok := handleError([2]byte{0x00, 0x04}, err); ok != 0 { // nonfatal, failed to read answer from server
+		return ok
+	}
+	switch shutdownResult[0] {
+	case 0xF0:
+		mainLog.Printf("Recived Failure, error code: %v\n", shutdownResult[1])
+		return 1
+	case 0x0F:
+	default:
+		mainLog.Printf("Unexpected answer from server")
+		return 1
+	}
+
 	return 2
 }
 

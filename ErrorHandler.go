@@ -16,7 +16,7 @@ func handleError(errorCode [2]byte, err error) int {
 		case 0x03:
 			errorLog.Printf("Failed to send command to server: %v\n", err)
 		case 0x04:
-			errorLog.Printf("Failed to read anser fro server: %v\n", err)
+			errorLog.Printf("Failed to read answer from server: %v\n", err)
 		case 0x05:
 			errorLog.Printf("Failed to form creqteUser request: %v\n", err)
 		case 0x06:
