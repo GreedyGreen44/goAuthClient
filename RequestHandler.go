@@ -325,6 +325,7 @@ func requestShutdown(tcpAddr *net.TCPAddr, currentRole *string, currentUserToken
 		mainLog.Printf("Recived Failure, error code: %v\n", shutdownResult[1])
 		return 1
 	case 0x0F:
+		mainLog.Printf("Server shut down")
 	default:
 		mainLog.Printf("Unexpected answer from server")
 		return 1
