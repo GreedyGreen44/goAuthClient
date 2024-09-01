@@ -38,6 +38,8 @@ func main() {
 			resultCode = requestTest(tcpAddr)
 		case "registration":
 			resultCode = requestRegistration(tcpAddr, currentRole, currentUserToken)
+		case "removeUser":
+			resultCode = requestRemoveUser(tcpAddr, currentRole, currentUserToken)
 		case "login":
 			resultCode = requestLogin(tcpAddr, &currentUserState, &currentRole, &currentUserToken)
 		case "logout":
