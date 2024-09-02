@@ -40,6 +40,8 @@ func main() {
 			resultCode = requestRegistration(tcpAddr, currentRole, currentUserToken)
 		case "removeUser":
 			resultCode = requestRemoveUser(tcpAddr, currentRole, currentUserToken)
+		case "changePassword":
+			resultCode = requestChangePwd(tcpAddr, &currentUserToken)
 		case "login":
 			resultCode = requestLogin(tcpAddr, &currentUserState, &currentRole, &currentUserToken)
 		case "logout":

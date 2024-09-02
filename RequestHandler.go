@@ -197,6 +197,40 @@ func requestLogout(tcpAddr *net.TCPAddr, currentUserState *string, currentUserTo
 	return 0
 }
 
+// request for change users password
+func requestChangePwd(tcpAddr *net.TCPAddr, currentUserToken *[]byte) int {
+	if *currentUserToken == nil {
+		handleError([2]byte{0x00, 0x0A}, errors.New("you are not logged in"))
+		return 1
+	}
+	tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+	if ok := handleError([2]byte{0x00, 0x02}, err); ok != 0 {
+		return ok
+	}
+	changePwdSlice, _ := sendChangePwd(*currentUserToken)
+
+	_, err = tcpConn.Write(changePwdSlice)
+	if ok := handleError([2]byte{0x00, 0x03}, err); ok != 0 {
+		return ok
+	}
+	changePwdResult, err := io.ReadAll(tcpConn)
+	if ok := handleError([2]byte{0x00, 0x04}, err); ok != 0 {
+		return ok
+	}
+	switch changePwdResult[0] {
+	case 0xF0:
+		mainLog.Printf("Recived Failure, error code: %v\n", changePwdResult[1])
+		return 1
+	case 0x0F:
+		mainLog.Printf("Password changed")
+	default:
+		mainLog.Printf("Unexpected answer from server")
+		return 1
+	}
+
+	return 0
+}
+
 // request for shutting down server
 func requestShutdown(tcpAddr *net.TCPAddr, currentRole *string, currentUserToken *[]byte) int {
 	if *currentRole != "SUPERUSER" {

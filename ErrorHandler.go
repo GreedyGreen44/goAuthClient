@@ -27,6 +27,8 @@ func handleError(errorCode [2]byte, err error) int {
 			errorLog.Printf("Failed to form shutdown request: %v\n", err)
 		case 0x09:
 			errorLog.Printf("Failed to form removeUser request: %v\n", err)
+		case 0x0A:
+			errorLog.Printf("Failed to form password change request: %v\n", err)
 		default:
 			errorLog.Printf("Unexpected minor error code %v, proceed with care\n", int(errorCode[1]))
 		}

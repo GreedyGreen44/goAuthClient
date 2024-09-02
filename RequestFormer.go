@@ -42,7 +42,6 @@ func sendCreateUser(token []byte) ([]byte, error) {
 		}
 		break
 	}
-
 	requestSlice, err := formNewUser(inputUserName, inputPassword1, inputRole, token)
 	if err != nil {
 		return nil, err
@@ -157,7 +156,7 @@ func sendLogin() ([]byte, string, error) {
 	return requestSlice, inputUserName, nil
 }
 
-// forms request fro logout
+// forms request for logout
 func sendLogout(token []byte) ([]byte, error) {
 	var (
 		requestSlice []byte
@@ -167,6 +166,57 @@ func sendLogout(token []byte) ([]byte, error) {
 	commandByte = 0x21
 	requestSlice = append(requestSlice, commandByte)
 	requestSlice = append(requestSlice, token...)
+	return requestSlice, nil
+}
+
+// forms request for changing users password
+func sendChangePwd(token []byte) ([]byte, error) {
+	var (
+		requestSlice []byte
+		commandByte  byte
+
+		inputOldPassword  string
+		inputNewPassword1 string
+		inputNewPassword2 string
+	)
+
+	for {
+		fmt.Println("Enter old password...")
+		_, err := fmt.Scan(&inputOldPassword)
+		if ok := handleError([2]byte{0x00, 0x01}, err); ok != 0 {
+			continue
+		}
+		break
+	}
+	for {
+		fmt.Println("Enter new password...")
+		_, err := fmt.Scan(&inputNewPassword1)
+		if ok := handleError([2]byte{0x00, 0x01}, err); ok != 0 {
+			continue
+		}
+		fmt.Println("Enter new password again...")
+		_, err = fmt.Scan(&inputNewPassword2)
+		if ok := handleError([2]byte{0x00, 0x01}, err); ok != 0 {
+			continue
+		}
+		if inputNewPassword1 != inputNewPassword2 {
+			fmt.Println("Passwords do not match")
+			continue
+		}
+		break
+	}
+
+	oldHashValue, oldHashSize := calculateMD5(inputOldPassword)
+	newHashValue, newHashSize := calculateMD5(inputNewPassword1)
+
+	commandByte = 0x12
+	requestSlice = append(requestSlice, commandByte)
+	requestSlice = append(requestSlice, token...)
+	requestSlice = append(requestSlice, byte(oldHashSize))
+	requestSlice = append(requestSlice, oldHashValue...)
+	requestSlice = append(requestSlice, byte(newHashSize))
+	requestSlice = append(requestSlice, newHashValue...)
+
 	return requestSlice, nil
 }
 
