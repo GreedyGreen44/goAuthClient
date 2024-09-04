@@ -42,6 +42,8 @@ func main() {
 			resultCode = requestRemoveUser(tcpAddr, currentRole, currentUserToken)
 		case "changePassword":
 			resultCode = requestChangePwd(tcpAddr, &currentUserToken)
+		case "changeRole":
+			resultCode = requestChangeRole(tcpAddr, &currentRole, &currentUserToken)
 		case "login":
 			resultCode = requestLogin(tcpAddr, &currentUserState, &currentRole, &currentUserToken)
 		case "logout":
@@ -60,6 +62,7 @@ func main() {
 	}
 }
 
+// logs out, supposed to be deferred from main after log in
 func autoLogout(tcpAddr *net.TCPAddr, currentUserState *string, currentUserToken *[]byte, currentRole *string) {
 	if *currentUserState != "Guest" {
 		requestLogout(tcpAddr, currentUserState, currentUserToken, currentRole)

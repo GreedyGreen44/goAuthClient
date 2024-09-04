@@ -220,6 +220,42 @@ func sendChangePwd(token []byte) ([]byte, error) {
 	return requestSlice, nil
 }
 
+// forms request to change users role
+func sendChangeRole(token []byte) ([]byte, error) {
+	var (
+		userName     string
+		desiredRole  string
+		requestSlice []byte
+		commandByte  byte
+	)
+	for {
+		fmt.Println("Enter user name...")
+		_, err := fmt.Scan(&userName)
+		if ok := handleError([2]byte{0x00, 0x01}, err); ok != 0 {
+			continue
+		}
+		break
+	}
+	for {
+		fmt.Println("Enter desired role...")
+		_, err := fmt.Scan(&desiredRole)
+		if ok := handleError([2]byte{0x00, 0x01}, err); ok != 0 {
+			continue
+		}
+		break
+	}
+
+	commandByte = 0x13
+	requestSlice = append(requestSlice, commandByte)
+	requestSlice = append(requestSlice, token...)
+	requestSlice = append(requestSlice, byte(len(userName)))
+	requestSlice = append(requestSlice, userName...)
+	requestSlice = append(requestSlice, byte(len(desiredRole)))
+	requestSlice = append(requestSlice, desiredRole...)
+
+	return requestSlice, nil
+}
+
 // forms request for shutting down server
 func sendShutDown(token []byte) ([]byte, error) {
 	shutDownSlice := []byte{0x01}

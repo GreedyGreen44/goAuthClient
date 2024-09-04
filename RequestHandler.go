@@ -231,6 +231,41 @@ func requestChangePwd(tcpAddr *net.TCPAddr, currentUserToken *[]byte) int {
 	return 0
 }
 
+// request for changing users role
+func requestChangeRole(tcpAddr *net.TCPAddr, currentRole *string, currentUserToken *[]byte) int {
+	if *currentRole != "SUPERUSER" {
+		handleError([2]byte{0x00, 0x0B}, errors.New("you have no right to do  that"))
+		return 1
+	}
+	tcpConn, err := net.DialTCP("tcp", nil, tcpAddr)
+	if ok := handleError([2]byte{0x00, 0x02}, err); ok != 0 {
+		return ok
+	}
+	changeRoleSlice, err := sendChangeRole(*currentUserToken)
+	if ok := handleError([2]byte{0x00, 0x0B}, err); ok != 0 {
+		return ok
+	}
+
+	_, err = tcpConn.Write(changeRoleSlice)
+	if ok := handleError([2]byte{0x00, 0x03}, err); ok != 0 {
+		return ok
+	}
+	changeRoleResult, err := io.ReadAll(tcpConn)
+	if ok := handleError([2]byte{0x00, 0x04}, err); ok != 0 {
+		return ok
+	}
+	switch changeRoleResult[0] {
+	case 0xF0:
+		mainLog.Printf("Recived Failure, error code: %v\n", changeRoleResult[1])
+	case 0x0F:
+		mainLog.Printf("Role Changed")
+	default:
+		mainLog.Printf("Unexpected answer from server")
+		return 1
+	}
+	return 0
+}
+
 // request for shutting down server
 func requestShutdown(tcpAddr *net.TCPAddr, currentRole *string, currentUserToken *[]byte) int {
 	if *currentRole != "SUPERUSER" {
